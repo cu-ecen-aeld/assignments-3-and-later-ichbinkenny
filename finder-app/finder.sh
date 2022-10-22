@@ -10,8 +10,21 @@ then
 	exit 1
 elif [ -d $filesdir ]
 then
-
-	echo "Directory exists!"
+	
+	# We have a directory we can search. Now we want to find the total number of files inside.
+	# Use ls to list all files, including the . and .. nodes, then pipe to word cound and get number
+	# of lines read. Each line is one file.
+	# -1 is for one line per file
+	# May also need
+	# -A is for almost all files (not . or ..)
+	# -R is to recurse into subdirectories.
+	filescount=$(ls -1 $filesdir | wc -l)
+	
+	# Get matching lines in each file.
+	matchinglines=$(grep -R $searchstr $filesdir | wc -l)
+	# TODO
+	
+	echo "The number of files are $filescount and the number of matching lines are $matchinglines"
 else
 	echo "Invalid directory provided. (Maybe you provided a file name instead of a directory?)"
 	exit 1
