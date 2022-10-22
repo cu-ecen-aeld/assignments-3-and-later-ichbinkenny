@@ -17,8 +17,8 @@ then
 	# -1 is for one line per file
 	# May also need
 	# -A is for almost all files (not . or ..)
-	# -R is to recurse into subdirectories.
-	filescount=$(ls -1 $filesdir | wc -l)
+	# -q to handle \n and other control characters properly. 
+	filescount=$(ls -1Aq $filesdir | wc -l)
 	
 	# Get matching lines in each file.
 	matchinglines=$(grep -R $searchstr $filesdir | wc -l)
