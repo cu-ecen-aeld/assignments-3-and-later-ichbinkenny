@@ -22,7 +22,6 @@ then
 	
 	# Get matching lines in each file.
 	matchinglines=$(grep -R $searchstr $filesdir | wc -l)
-	# TODO
 	
 	echo "The number of files are $filescount and the number of matching lines are $matchinglines"
 else
