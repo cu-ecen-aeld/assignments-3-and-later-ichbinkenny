@@ -65,12 +65,13 @@ then
 fi
 
 # TODO: Create necessary base directories
-cd "${OUTDIR}/rootfs"
-mkdir bin dev etc home lib proc sys sbin tmp usr usr/bin usr/lib usr/sbin root var
+mkdir ${OUTDIR}/rootfs
+cd ${OUTDIR}/rootfs
+mkdir bin dev etc home lib lib64 proc sys sbin tmp usr usr/bin usr/lib usr/sbin root var
 # Change owner to root
 sudo chown -R root:root *
 
-cd "$OUTDIR"
+cd $OUTDIR
 if [ ! -d "${OUTDIR}/busybox" ]
 then
 git clone git://busybox.net/busybox.git
@@ -92,6 +93,13 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
+SYSROOT=$(${CROSS_COMPILE}gcc --print-sysroot)
+
+sudo cp -a ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
+sudo cp -a ${SYSROOT}/lib64/ld-2.31.so ${OUTDIR}/rootfs/lib/
+sudo cp -a ${SYSROOT}/lib64/libm-2.31.so ${OUTDIR}/rootfs/lib/
+sudo cp -a ${SYSROOT}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib/
+sudo cp -a ${SYSROOT}/lib64/libc.so.6
 
 # TODO: Make device nodes
 # Make /dev/null entry
