@@ -46,6 +46,8 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
 		# Defconfig to setup VIRT target for QEMU
 		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig 
+		# Build target
+		make -j8 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
 fi
 
 echo "Adding the Image in outdir"
