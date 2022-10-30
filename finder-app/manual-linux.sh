@@ -47,14 +47,15 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 		# Defconfig to setup VIRT target for QEMU
 		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig 
 		# Build target
-		make -j8 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+		make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
 		# Build modules
-		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+		# make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
 		# Build device tree
 		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
 
 echo "Adding the Image in outdir"
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -78,28 +79,31 @@ git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
-    make distclean
-    make defconfig
+    make ARCH=${ARCH} distclean
+    make ARCH=${ARCH} defconfig
+    make ARCH=${ARCH}
 else
     cd busybox
 fi
 
 # TODO: Make and install busybox
+echo "Trying busybox again..."
 sudo make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install CONFIG_PREFIX=${OUTDIR}/rootfs/
 
 
 echo "Library dependencies"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 SYSROOT=$(${CROSS_COMPILE}gcc --print-sysroot)
+cd ${OUTDIR}/rootfs
 
 sudo cp -a ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
 sudo cp -a ${SYSROOT}/lib64/ld-2.31.so ${OUTDIR}/rootfs/lib/
 sudo cp -a ${SYSROOT}/lib64/libm-2.31.so ${OUTDIR}/rootfs/lib/
 sudo cp -a ${SYSROOT}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib/
-sudo cp -a ${SYSROOT}/lib64/libc.so.6
+sudo cp -a ${SYSROOT}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib/
 
 # TODO: Make device nodes
 # Make /dev/null entry
@@ -113,14 +117,18 @@ make CROSS_COMPILE=${CROSS_COMPILE}
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
-cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home/
-cp ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home/
-cp ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home/
-cp -R ${FINDER_APP_DIR}/../conf ${OUTDIR}/rootfs/home/ 
+sudo cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home/
+sudo cp ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home/
+sudo cp ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home/
+sudo cp -R ${FINDER_APP_DIR}/../conf ${OUTDIR}/rootfs/home/ 
 
 # TODO: Chown the root directory
-sudo chown -R root:root ${OUTDIR}/rootfs/root
+sudo chown -R root:root ${OUTDIR}/rootfs
 # TODO: Create initramfs.cpio.gz
-
 # Create .cpio file
+echo "Creating CPIO file..."
+sudo find "${OUTDIR}/rootfs" -depth -print0 | cpio -ovc0 > ${OUTDIR}/initramfs.cpio
+# GZip file
+echo "Zipping CPIO file..."
+sudo gzip ${OUTDIR}/initramfs.cpio
 
