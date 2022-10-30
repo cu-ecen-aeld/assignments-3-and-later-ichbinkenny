@@ -23,6 +23,13 @@ fi
 
 mkdir -p ${OUTDIR}
 
+# Fail if could not create directory.
+if [ $? -ne 0 ]
+then
+	echo "Could not create supplied output directory."
+	return 1
+fi
+
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
     #Clone only if the repository does not exist.
@@ -35,6 +42,10 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     git checkout ${KERNEL_VERSION}
 
     # TODO: Add your kernel build steps here
+		# Clean all old configs.
+		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+		# Defconfig to setup VIRT target for QEMU
+		make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig 
 fi
 
 echo "Adding the Image in outdir"
