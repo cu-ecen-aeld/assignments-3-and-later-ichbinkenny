@@ -18,7 +18,7 @@ then
 	# May also need
 	# -A is for almost all files (not . or ..)
 	# -q to handle \n and other control characters properly. 
-	filescount=$(ls -1Aq $filesdir | wc -l)
+	filescount=$(ls -1A $filesdir | wc -l)
 	
 	# Get matching lines in each file.
 	matchinglines=$(grep -R $searchstr $filesdir | wc -l)

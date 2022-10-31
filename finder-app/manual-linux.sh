@@ -68,11 +68,11 @@ fi
 # TODO: Create necessary base directories
 mkdir ${OUTDIR}/rootfs
 cd ${OUTDIR}/rootfs
-mkdir bin dev etc home lib lib64 proc sys sbin tmp usr usr/bin usr/lib usr/sbin root var
+mkdir -p bin dev etc home lib lib64 proc sys sbin tmp usr usr/bin usr/lib usr/sbin var var/log
 # Change owner to root
 sudo chown -R root:root *
 
-cd $OUTDIR
+cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
 then
 git clone git://busybox.net/busybox.git
@@ -91,27 +91,28 @@ echo "Trying busybox again..."
 sudo make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install CONFIG_PREFIX=${OUTDIR}/rootfs/
 
 
-echo "Library dependencies"
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 SYSROOT=$(${CROSS_COMPILE}gcc --print-sysroot)
 cd ${OUTDIR}/rootfs
 
-sudo cp -a ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
-sudo cp -a ${SYSROOT}/lib64/ld-2.31.so ${OUTDIR}/rootfs/lib/
-sudo cp -a ${SYSROOT}/lib64/libm-2.31.so ${OUTDIR}/rootfs/lib/
-sudo cp -a ${SYSROOT}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib/
-sudo cp -a ${SYSROOT}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib/
+echo "Library dependencies"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
+
+# Seems like -L is needed for this to run...
+sudo cp -L ${SYSROOT}/lib/ld-linux-aarch64.* ${OUTDIR}/rootfs/lib
+sudo cp -L ${SYSROOT}/lib64/libm.so.* ${OUTDIR}/rootfs/lib64
+sudo cp -L ${SYSROOT}/lib64/libresolv.so.* ${OUTDIR}/rootfs/lib64
+sudo cp -L ${SYSROOT}/lib64/libc.so.* ${OUTDIR}/rootfs/lib64
 
 # TODO: Make device nodes
 # Make /dev/null entry
 sudo mknod -m 666 dev/null c 1 3
 # Make console entry
-sudo mknod -m 666 dev/console c 5 1
+sudo mknod -m 600 dev/console c 5 1
 # TODO: Clean and build the writer utility
-cd ${FINDER_APP_DIR}
+cd ${FINDER_APP_DIR}/
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}
 
@@ -120,15 +121,21 @@ make CROSS_COMPILE=${CROSS_COMPILE}
 sudo cp ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home/
 sudo cp ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home/
 sudo cp ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home/
-sudo cp -R ${FINDER_APP_DIR}/../conf ${OUTDIR}/rootfs/home/ 
+sudo cp -r ${FINDER_APP_DIR}/../conf ${OUTDIR}/rootfs/home/ 
+sudo cp ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs/home/
+
+# Having permission issues, try marking as exec.
 
 # TODO: Chown the root directory
-sudo chown -R root:root ${OUTDIR}/rootfs
-# TODO: Create initramfs.cpio.gz
+cd ${OUTDIR}/rootfs
+sudo chown -R root:root *
 # Create .cpio file
 echo "Creating CPIO file..."
-sudo find "${OUTDIR}/rootfs" -depth -print0 | cpio -ovc0 > ${OUTDIR}/initramfs.cpio
+find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
 # GZip file
+# TODO: Create initramfs.cpio.gz
+cd ${OUTDIR}
 echo "Zipping CPIO file..."
-sudo gzip ${OUTDIR}/initramfs.cpio
+rm -f initramfs.cpio.gz
+gzip initramfs.cpio
 
