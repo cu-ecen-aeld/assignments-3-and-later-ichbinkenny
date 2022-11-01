@@ -90,7 +90,7 @@ fi
 
 # TODO: Make and install busybox
 echo "Trying busybox again..."
-sudo make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install CONFIG_PREFIX=${OUTDIR}/rootfs/
+sudo env "PATH=$PATH" make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTDIR}/rootfs/ install
 
 
 
