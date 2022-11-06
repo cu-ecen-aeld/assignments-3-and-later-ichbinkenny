@@ -1,5 +1,7 @@
-BUILD_TOOL=$(CROSS_COMPILE)
+CCOMP=gcc
+BUILD_TOOL=
+all: default
 default:
-	@${BUILD_TOOL}gcc -o writer writer.c
+	$(BUILD_TOOL)$(CC) $(CFLAGS) $(INCLUDES) $(OBJS) -o writer writer.c $(LDFLAGS)
 clean:
 	@rm -f writer *.o
