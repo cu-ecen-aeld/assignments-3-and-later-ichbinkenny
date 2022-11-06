@@ -8,7 +8,7 @@ set -u
 NUMFILES=10
 WRITESTR=AELD_IS_FUN
 WRITEDIR=/tmp/aeld-data
-OUTPUT_FILE=/tmp/assignment4-results.txt
+OUTPUT_FILE=/tmp/assignment4-result.txt
 username=$(cat /etc/finder-app/conf/username.txt)
 
 if [ $# -lt 2 ]
