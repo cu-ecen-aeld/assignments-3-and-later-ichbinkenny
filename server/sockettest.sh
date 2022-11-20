@@ -1,4 +1,4 @@
-# !/bin/bash
+# !/bin/sh
 # Tester script for sockets using Netcat
 
 pushd `dirname $0`
