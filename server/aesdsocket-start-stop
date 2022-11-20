@@ -1,12 +1,9 @@
-#!/bin/bash
-#
+#!/bin/sh
 DAEMON_NAME="aesdsocket"
 AESD_SOCKET_PATH="/usr/bin/"
 
 # Fix for stupid tempfile usage in buildscript. This is NOT debian...
 # Only use if absolutely needed...
-alias tempfile=mktemp
-
 # Kill the server if it was already running.
 
 start-stop-daemon -K --signal TERM --name ${DAEMON_NAME}
