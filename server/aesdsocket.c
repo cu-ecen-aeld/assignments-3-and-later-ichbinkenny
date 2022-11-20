@@ -24,15 +24,16 @@ struct addrinfo hints;
 int log_file_handle = -1;
 bool should_terminate = false;
 
+void delete_tmp_file() { unlink(AESD_TMP_FILE_PATH); }
+
 void cleanup() {
   closelog();
   close(server_socket);
   if (-1 != log_file_handle) {
     close(log_file_handle);
   }
+  delete_tmp_file();
 }
-
-void delete_tmp_file() { unlink(AESD_TMP_FILE_PATH); }
 
 void cleanup_and_exit() {
   printf("Caught signal, exiting\n");
@@ -84,41 +85,11 @@ int send_log_file_to_client(int client_socket) {
   return -1;
 }
 
-int main(int argc, char *argv[]) {
-  // setup signal handling
-  signal(SIGTERM, cleanup_and_exit);
-  signal(SIGINT, cleanup_and_exit);
-  open_tmp_file();
-  openlog("", 0, LOG_USER);
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
-  if (0 != getaddrinfo(NULL, "9000", &hints, &address_info)) {
-    cleanup();
-    perror("Failed to get addr info...\n");
-    return -1;
-  }
-
-  server_socket = socket(AF_INET, SOCK_STREAM, 0);
-
-  int tmp = 0;
-
-  if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &tmp, sizeof(int)) ==
-      -1) {
-    perror("Unable to set socket option for reusing address.\n");
-  }
-
-  if (0 !=
-      bind(server_socket, address_info->ai_addr, sizeof(struct addrinfo))) {
-    cleanup();
-    perror("Failed to bind...\n");
-    return -1;
-  }
+void run_server(int server_socket) {
   if (-1 == listen(server_socket, 8)) {
     cleanup();
     perror("Failed to start listening for clients...\n");
-    return -1;
+    exit(-1);
   }
   freeaddrinfo(address_info);
   while (!should_terminate) {
@@ -200,4 +171,83 @@ int main(int argc, char *argv[]) {
   }
 
   cleanup();
+}
+
+int main(int argc, char *argv[]) {
+
+  // setup signal handling
+  signal(SIGTERM, cleanup_and_exit);
+  signal(SIGINT, cleanup_and_exit);
+
+  open_tmp_file();
+  openlog("", 0, LOG_USER);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+  if (0 != getaddrinfo(NULL, "9000", &hints, &address_info)) {
+    cleanup();
+    perror("Failed to get addr info...\n");
+    return -1;
+  }
+
+  server_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+  int tmp = 0;
+
+  if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &tmp, sizeof(int)) ==
+      -1) {
+    perror("Unable to set socket option for reusing address.\n");
+  }
+
+  if (0 !=
+      bind(server_socket, address_info->ai_addr, sizeof(struct addrinfo))) {
+    cleanup();
+    perror("Failed to bind...\n");
+    return -1;
+  }
+
+  // check for a -d flag to see if we are to fork
+  // and run as a daemon.
+  if (argc == 2 && 0 == strcmp(argv[1], "-d")) {
+    printf("Found request to run as daemon.\n");
+    int pid = fork();
+    if (-1 == pid) {
+      cleanup();
+      return -1;
+    } else if (0 != pid) {
+      // This is a parent, but we want the child to run on its own.
+      // We need to exit here, without cleanup.
+      exit(0);
+    }
+
+    // At this point, we are in the child process, but need to reassign our
+    // session group
+    if (-1 == setsid()) {
+      // Failed to get a session id. Close.
+      cleanup();
+      exit(-1);
+    }
+
+    // Set our working directory to the root of the system.
+    if (-1 == chdir("/")) {
+      cleanup();
+      exit(-1);
+    }
+
+    // Pipe stdout, stdin, and stderr for this process to /dev/null so no prints
+    // are displayed.
+    int dev_null_fd = open("/dev/null", O_WRONLY);
+    dup2(dev_null_fd, 0);
+    dup2(dev_null_fd, 1);
+    dup2(dev_null_fd, 2);
+
+    // We may want to also handle stderr since errors are now going to log file.
+    // Skipping for now.
+    run_server(server_socket);
+    cleanup_and_exit();
+  } else {
+    run_server(server_socket);
+    cleanup_and_exit();
+  }
 }
