@@ -1,4 +1,3 @@
-CROSS_COMPILE=
 default: all
 
 all:
