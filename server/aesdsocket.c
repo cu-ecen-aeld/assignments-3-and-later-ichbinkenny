@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,11 +26,20 @@ bool should_terminate = false;
 
 void cleanup() {
   closelog();
-  freeaddrinfo(address_info);
   close(server_socket);
   if (-1 != log_file_handle) {
     close(log_file_handle);
   }
+}
+
+void delete_tmp_file() { unlink(AESD_TMP_FILE_PATH); }
+
+void cleanup_and_exit() {
+  printf("Caught signal, exiting\n");
+  syslog(LOG_USER, "Caught signal, exiting\n");
+  cleanup();
+  delete_tmp_file();
+  exit(0);
 }
 
 void open_tmp_file() {
@@ -75,6 +85,9 @@ int send_log_file_to_client(int client_socket) {
 }
 
 int main(int argc, char *argv[]) {
+  // setup signal handling
+  signal(SIGTERM, cleanup_and_exit);
+  signal(SIGINT, cleanup_and_exit);
   open_tmp_file();
   openlog("", 0, LOG_USER);
   memset(&hints, 0, sizeof(hints));
