@@ -1,7 +1,9 @@
+CCOMP=gcc
+BUILD_TOOL=
 default: all
 
 all:
-		${CROSS_COMPILE}gcc -o aesdsocket aesdsocket.c -Wall -Werror
+		$(BUILD_TOOL)$(CC) $(CFLAGS) $(INCLUDES) $(OBJS) -o aesdsocket aesdsocket.c -Wall -Werror $(LDFLAGS)
 
 clean:
 		@rm -f aesdsocket
