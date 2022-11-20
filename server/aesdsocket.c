@@ -193,11 +193,16 @@ int main(int argc, char *argv[]) {
 
   server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
-  int tmp = 0;
+  int tmp = 1;
 
   if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &tmp, sizeof(int)) ==
       -1) {
     perror("Unable to set socket option for reusing address.\n");
+  }
+
+  if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEPORT, &tmp, sizeof(int)) ==
+      -1) {
+    perror("Failed to set reuse port option for socket.\n");
   }
 
   if (0 !=
