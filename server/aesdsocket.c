@@ -167,15 +167,17 @@ void *handle_client(void *client_ptr) {
   // Now, read all the log file into a message and send it back to the
   // client.
   // printf("Sending temp file to client...\n");
+  pthread_mutex_lock(&message_write_mutex);
   if (-1 == send_log_file_to_client(client.socket)) {
     // printf("Failed to send data to client. Errno: %d\n", errno);
     close(client.socket);
     free(string_data);
     // cleanup();
     client.has_exited = true;
+    pthread_mutex_unlock(&message_write_mutex);
     return client_ptr;
   }
-
+  pthread_mutex_unlock(&message_write_mutex);
   // Close connection
   // syslog(LOG_USER, "Closed connection from %s\n", client.ip_addr);
   // printf("Closed connection from client: %s\n", client.ip_addr);
