@@ -96,6 +96,7 @@ void open_tmp_file() {
 }
 
 int send_log_file_to_client(int client_socket) {
+  pthread_mutex_lock(&message_write_mutex);
   if (-1 != log_file_handle) {
     char message_buffer[RECV_SEND_BUFF_SIZE] = {0};
     int num_received_bytes = 0;
@@ -107,15 +108,20 @@ int send_log_file_to_client(int client_socket) {
       // printf("Read bytes: %s\n", message_buffer);
       if (0 > (status = send(client_socket, message_buffer, num_received_bytes,
                              0))) {
+        pthread_mutex_unlock(&message_write_mutex);
         return status;
       }
     }
     // printf("Sent log file contents!\n");
     // The final loop should either set this to 0 for an EOF,
     // or -1 if an error occurred.
+            pthread_mutex_unlock(&message_write_mutex);
+
     return num_received_bytes;
   }
   // printf("Log file was invalid...\n");
+          pthread_mutex_unlock(&message_write_mutex);
+
   return -1;
 }
 
