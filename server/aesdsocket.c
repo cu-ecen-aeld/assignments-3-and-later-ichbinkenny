@@ -42,9 +42,7 @@ struct list_node_head thread_list_head;
 int write_data_to_tmp_file(const char *data) {
   if (-1 != log_file_handle) {
     // printf("Writing data: %s to the tmp file.\n", data);
-    pthread_mutex_lock(&message_write_mutex);
     int status = write(log_file_handle, data, strlen(data));
-    pthread_mutex_unlock(&message_write_mutex);
     return status;
   }
   return -1;
@@ -153,7 +151,8 @@ void *handle_client(void *client_ptr) {
   }
 
   // Have message, now need to write to log file.
-  // printf("Received message: %s\n", string_data);
+  pthread_mutex_lock(&message_write_mutex);
+  printf("Received message: %s\n", string_data);
   // syslog(LOG_USER, "%s\n", string_data);
   if (-1 == write_data_to_tmp_file(string_data)) {
     // printf("Failed to write data to file. Errno: %d\n", errno);
@@ -161,13 +160,13 @@ void *handle_client(void *client_ptr) {
     free(string_data);
     // cleanup();
     client.has_exited = true;
+    pthread_mutex_unlock(&message_write_mutex);
     return client_ptr;
   }
 
   // Now, read all the log file into a message and send it back to the
   // client.
   // printf("Sending temp file to client...\n");
-  pthread_mutex_lock(&message_write_mutex);
   if (-1 == send_log_file_to_client(client.socket)) {
     // printf("Failed to send data to client. Errno: %d\n", errno);
     close(client.socket);
@@ -177,10 +176,10 @@ void *handle_client(void *client_ptr) {
     pthread_mutex_unlock(&message_write_mutex);
     return client_ptr;
   }
-  pthread_mutex_unlock(&message_write_mutex);
   // Close connection
   // syslog(LOG_USER, "Closed connection from %s\n", client.ip_addr);
   // printf("Closed connection from client: %s\n", client.ip_addr);
+  pthread_mutex_unlock(&message_write_mutex);
   free(string_data);
   close(client.socket);
   client.has_exited = true;
