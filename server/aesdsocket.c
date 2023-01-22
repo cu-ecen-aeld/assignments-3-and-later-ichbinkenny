@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <asm-generic/socket.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -213,7 +212,7 @@ void run_server(int server_socket)
           .ip_addr = client_ip_addr,
       };
       int status = 0;
-      handle_client(&client_thread);
+      pthread_create(&client_thread.thread, NULL, handle_client, &client_thread);
       if (0 != status)
       {
         printf("Failed to start thread.\n");
@@ -230,7 +229,7 @@ void run_server(int server_socket)
         struct client_data *client_data = (struct client_data *)entry->data;
         if (client_data->has_exited)
         {
-          // pthread_join(client_data->thread, NULL);
+          pthread_join(client_data->thread, NULL);
         }
       }
     }
@@ -274,10 +273,11 @@ int main(int argc, char *argv[])
   }
 
   if (0 !=
-      bind(server_socket, address_info->ai_addr, sizeof(struct addrinfo)))
+      bind(server_socket, (struct sockaddr*)(address_info->ai_addr), sizeof(struct sockaddr)))
   {
     cleanup();
     perror("Failed to bind...\n");
+    printf("Error code: %d\n", errno);
     return -1;
   }
 
