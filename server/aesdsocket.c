@@ -27,6 +27,7 @@ struct addrinfo *address_info;
 struct addrinfo hints;
 int log_file_handle = -1;
 bool should_terminate = false;
+pthread_mutex_t data_recv_mutex;
 pthread_mutex_t message_write_mutex;
 pthread_t timestamp_thread;
 
@@ -41,7 +42,7 @@ struct list_node_head thread_list_head;
 
 int write_data_to_tmp_file(const char *data) {
   if (-1 != log_file_handle) {
-    // printf("Writing data: %s to the tmp file.\n", data);
+    printf("Writing data: %s to the tmp file.\n", data);
     pthread_mutex_lock(&message_write_mutex);
     int status = write(log_file_handle, data, strlen(data));
     pthread_mutex_unlock(&message_write_mutex);
@@ -96,7 +97,6 @@ void open_tmp_file() {
 }
 
 int send_log_file_to_client(int client_socket) {
-  pthread_mutex_lock(&message_write_mutex);
   if (-1 != log_file_handle) {
     char message_buffer[RECV_SEND_BUFF_SIZE] = {0};
     int num_received_bytes = 0;
@@ -108,19 +108,14 @@ int send_log_file_to_client(int client_socket) {
       // printf("Read bytes: %s\n", message_buffer);
       if (0 > (status = send(client_socket, message_buffer, num_received_bytes,
                              0))) {
-        pthread_mutex_unlock(&message_write_mutex);
         return status;
       }
     }
     // printf("Sent log file contents!\n");
     // The final loop should either set this to 0 for an EOF,
     // or -1 if an error occurred.
-            pthread_mutex_unlock(&message_write_mutex);
-
     return num_received_bytes;
   }
-  // printf("Log file was invalid...\n");
-          pthread_mutex_unlock(&message_write_mutex);
 
   return -1;
 }
@@ -156,7 +151,6 @@ void *handle_client(void *client_ptr) {
       return client_ptr;
     }
   }
-
   // Have message, now need to write to log file.
   printf("Received message: %s\n", string_data);
   // syslog(LOG_USER, "%s\n", string_data);
@@ -219,13 +213,13 @@ void run_server(int server_socket) {
           .ip_addr = client_ip_addr,
       };
       int status = 0;
-      pthread_create(&client_thread.thread, NULL, handle_client,
-                     &client_thread);
+      handle_client(&client_thread);
+      //pthread_create(&client_thread.thread, NULL, handle_client, &client_thread);
       if (0 != status) {
         printf("Failed to start thread.\n");
       } else {
         // add thread info to list
-        single_list_push(&thread_list_head, &client_thread);
+        //single_list_push(&thread_list_head, &client_thread);
       }
 
       // terminate any running threads
@@ -234,7 +228,7 @@ void run_server(int server_socket) {
         struct client_data *client_data = (struct client_data *)entry->data;
         if (client_data->has_exited) {
           printf("Closing thread.\n");
-          pthread_join(client_data->thread, NULL);
+          //pthread_join(client_data->thread, NULL);
         }
       }
     }
