@@ -42,7 +42,7 @@ struct list_node_head thread_list_head;
 
 int write_data_to_tmp_file(const char *data) {
   if (-1 != log_file_handle) {
-    printf("Writing data: %s to the tmp file.\n", data);
+    // printf("Writing data: %s to the tmp file.\n", data);
     pthread_mutex_lock(&message_write_mutex);
     int status = write(log_file_handle, data, strlen(data));
     pthread_mutex_unlock(&message_write_mutex);
@@ -68,7 +68,7 @@ void *run_timer() {
 void delete_tmp_file() { unlink(AESD_TMP_FILE_PATH); }
 
 void cleanup() {
-  pthread_cancel(timestamp_thread);
+  // pthread_cancel(timestamp_thread);
   closelog();
   close(server_socket);
   if (-1 != log_file_handle) {
@@ -101,6 +101,7 @@ int send_log_file_to_client(int client_socket) {
     char message_buffer[RECV_SEND_BUFF_SIZE] = {0};
     int num_received_bytes = 0;
     // Seek to beginning of file.
+    pthread_mutex_lock(&data_recv_mutex);
     lseek(log_file_handle, 0, SEEK_SET);
     while (0 < (num_received_bytes = read(log_file_handle, message_buffer,
                                           RECV_SEND_BUFF_SIZE))) {
@@ -108,12 +109,14 @@ int send_log_file_to_client(int client_socket) {
       // printf("Read bytes: %s\n", message_buffer);
       if (0 > (status = send(client_socket, message_buffer, num_received_bytes,
                              0))) {
+        pthread_mutex_unlock(&data_recv_mutex);
         return status;
       }
     }
     // printf("Sent log file contents!\n");
     // The final loop should either set this to 0 for an EOF,
     // or -1 if an error occurred.
+    pthread_mutex_unlock(&data_recv_mutex);
     return num_received_bytes;
   }
 
@@ -121,13 +124,16 @@ int send_log_file_to_client(int client_socket) {
 }
 
 void *handle_client(void *client_ptr) {
-  struct client_data client = *((struct client_data *)client_ptr);
+  if (NULL == client_ptr) {
+    return NULL;
+  }
+  struct client_data *client = (struct client_data *)client_ptr;
   int num_read_bytes = 0;
   int current_position = 0;
   int iterations = 1;
   char *string_data = calloc(MAX_START_BUFFER_SIZE, sizeof(char));
 
-  while ((num_read_bytes = recv(client.socket, string_data + current_position,
+  while ((num_read_bytes = recv(client->socket, string_data + current_position,
                                 MAX_START_BUFFER_SIZE, 0)) > 0) {
     // we have data, now we need to see if a newline was found.
     if (NULL != strchr(string_data, '\n')) {
@@ -144,42 +150,42 @@ void *handle_client(void *client_ptr) {
 
     // Validate that we got new memory
     if (NULL == string_data) {
-      close(client.socket);
+      close(client->socket);
       free(string_data);
       // cleanup();
-      client.has_exited = true;
+      client->has_exited = true;
       return client_ptr;
     }
   }
   // Have message, now need to write to log file.
-  printf("Received message: %s\n", string_data);
+  // printf("Received message: %s\n", string_data);
   // syslog(LOG_USER, "%s\n", string_data);
   if (-1 == write_data_to_tmp_file(string_data)) {
     // printf("Failed to write data to file. Errno: %d\n", errno);
-    close(client.socket);
+    close(client->socket);
     free(string_data);
     // cleanup();
-    client.has_exited = true;
+    client->has_exited = true;
     return client_ptr;
   }
 
   // Now, read all the log file into a message and send it back to the
   // client.
   // printf("Sending temp file to client...\n");
-  if (-1 == send_log_file_to_client(client.socket)) {
+  if (-1 == send_log_file_to_client(client->socket)) {
     // printf("Failed to send data to client. Errno: %d\n", errno);
-    close(client.socket);
+    close(client->socket);
     free(string_data);
     // cleanup();
-    client.has_exited = true;
+    client->has_exited = true;
     return client_ptr;
   }
   // Close connection
   // syslog(LOG_USER, "Closed connection from %s\n", client.ip_addr);
   // printf("Closed connection from client: %s\n", client.ip_addr);
   free(string_data);
-  close(client.socket);
-  client.has_exited = true;
+  close(client->socket);
+  client->has_exited = true;
   return client_ptr;
 }
 
@@ -213,13 +219,16 @@ void run_server(int server_socket) {
           .ip_addr = client_ip_addr,
       };
       int status = 0;
-      handle_client(&client_thread);
-      //pthread_create(&client_thread.thread, NULL, handle_client, &client_thread);
+      // handle_client(&client_thread);
+      printf("Handling new client. Has exited: %s\n",
+             client_thread.has_exited ? "yes" : "no");
+      pthread_create(&client_thread.thread, NULL, handle_client,
+                     &client_thread);
       if (0 != status) {
         printf("Failed to start thread.\n");
       } else {
         // add thread info to list
-        //single_list_push(&thread_list_head, &client_thread);
+        single_list_push(&thread_list_head, &client_thread);
       }
 
       // terminate any running threads
@@ -228,7 +237,7 @@ void run_server(int server_socket) {
         struct client_data *client_data = (struct client_data *)entry->data;
         if (client_data->has_exited) {
           printf("Closing thread.\n");
-          //pthread_join(client_data->thread, NULL);
+          pthread_join(client_data->thread, NULL);
         }
       }
     }
