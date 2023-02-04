@@ -88,7 +88,7 @@ void cleanup_and_exit() {
 
 void open_tmp_file() {
   if (-1 == log_file_handle) {
-    log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_RDWR);
+    log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_RDWR, 0755);
   }
   if (-1 == log_file_handle) {
     cleanup();
