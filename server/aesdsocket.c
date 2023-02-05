@@ -62,7 +62,7 @@ void *run_timer() {
     struct tm *clock_time = localtime(&current_time);
     strftime(&timestamp[11], sizeof(timestamp) - 11, TIMESTAMP_FORMAT,
              clock_time);
-    //write_data_to_tmp_file(timestamp);
+    write_data_to_tmp_file(timestamp);
     sleep(TIMESTAMP_DELAY);
   }
   return NULL;
