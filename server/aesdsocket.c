@@ -228,7 +228,7 @@ void run_server(int server_socket) {
           .socket = client_socket,
           .ip_addr = client_ip_addr,
       };
-      int status = 0;
+      // int status = 0;
       handle_client(&client_thread);
       //pthread_create(&client_thread.thread, NULL, handle_client,
       //               &client_thread);
