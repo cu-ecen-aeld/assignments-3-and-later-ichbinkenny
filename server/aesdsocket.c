@@ -42,7 +42,7 @@ struct list_node_head thread_list_head;
 
 int write_data_to_tmp_file(const char *data) {
   pthread_mutex_lock(&message_write_mutex);
-  log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_WRONLY, 0755);
+  log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_WRONLY | O_APPEND, 0755);
   if (-1 != log_file_handle) {
     printf("Writing data: %s to the tmp file.\n", data);
     int status = write(log_file_handle, data, strlen(data));
