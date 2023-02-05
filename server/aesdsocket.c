@@ -192,7 +192,7 @@ void *handle_client(void *client_ptr) {
   }
   // Close connection
   // syslog(LOG_USER, "Closed connection from %s\n", client.ip_addr);
-  printf("Closed connection from client: %s\n", client.ip_addr);
+  printf("Closed connection from client: %s\n", client->ip_addr);
   free(string_data);
   close(client->socket);
   client->has_exited = true;
