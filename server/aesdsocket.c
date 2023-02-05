@@ -229,25 +229,25 @@ void run_server(int server_socket) {
           .ip_addr = client_ip_addr,
       };
       int status = 0;
-      handle_client(&client_thread);
-      // pthread_create(&client_thread.thread, NULL, handle_client,
-      //                &client_thread);
+      // handle_client(&client_thread);
+      pthread_create(&client_thread.thread, NULL, handle_client,
+                     &client_thread);
       if (0 != status) {
         printf("Failed to start thread.\n");
       } else {
         // add thread info to list
-        // single_list_push(&thread_list_head, &client_thread);
+        single_list_push(&thread_list_head, &client_thread);
       }
 
       // terminate any running threads
-      // for (struct list_node *entry = thread_list_head.next; entry != NULL;
-      //      entry = entry->next) {
-      //   struct client_data *client_data = (struct client_data *)entry->data;
-      //   if (client_data->has_exited) {
-      //     printf("Closing thread.\n");
-      //     pthread_join(client_data->thread, NULL);
-      //   }
-      // }
+      for (struct list_node *entry = thread_list_head.next; entry != NULL;
+           entry = entry->next) {
+        struct client_data *client_data = (struct client_data *)entry->data;
+        if (client_data->has_exited) {
+          printf("Closing thread.\n");
+          pthread_join(client_data->thread, NULL);
+        }
+      }
     }
   }
   cleanup();
