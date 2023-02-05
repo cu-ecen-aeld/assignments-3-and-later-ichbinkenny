@@ -41,13 +41,16 @@ struct client_data {
 struct list_node_head thread_list_head;
 
 int write_data_to_tmp_file(const char *data) {
+  pthread_mutex_lock(&message_write_mutex);
+  open(AESD_TMP_FILE_PATH, O_WRONLY, 0755);
   if (-1 != log_file_handle) {
     // printf("Writing data: %s to the tmp file.\n", data);
-    pthread_mutex_lock(&message_write_mutex);
     int status = write(log_file_handle, data, strlen(data));
+    close_tmp_file();
     pthread_mutex_unlock(&message_write_mutex);
     return status;
   }
+  pthread_mutex_unlock(&message_write_mutex);
   return -1;
 }
 
@@ -71,9 +74,7 @@ void cleanup() {
   // pthread_cancel(timestamp_thread);
   closelog();
   close(server_socket);
-  if (-1 != log_file_handle) {
-    close(log_file_handle);
-  }
+  close_tmp_file();
   delete_tmp_file();
   single_list_delete_all(&thread_list_head);
 }
@@ -96,12 +97,21 @@ void open_tmp_file() {
   }
 }
 
+void close_tmp_file()
+{
+  if (-1 != log_file_handle)
+  {
+    close(log_file_handle);
+  }
+}
+
 int send_log_file_to_client(int client_socket) {
+  pthread_mutex_locK(&data_recv_mutex);
+  open_tmp_file();
   if (-1 != log_file_handle) {
     char message_buffer[RECV_SEND_BUFF_SIZE] = {0};
     int num_received_bytes = 0;
     // Seek to beginning of file.
-    pthread_mutex_lock(&data_recv_mutex);
     lseek(log_file_handle, 0, SEEK_SET);
     while (0 < (num_received_bytes = read(log_file_handle, message_buffer,
                                           RECV_SEND_BUFF_SIZE))) {
@@ -109,6 +119,7 @@ int send_log_file_to_client(int client_socket) {
       // printf("Read bytes: %s\n", message_buffer);
       if (0 > (status = send(client_socket, message_buffer, num_received_bytes,
                              0))) {
+        close_tmp_file();
         pthread_mutex_unlock(&data_recv_mutex);
         return status;
       }
@@ -116,6 +127,7 @@ int send_log_file_to_client(int client_socket) {
     // printf("Sent log file contents!\n");
     // The final loop should either set this to 0 for an EOF,
     // or -1 if an error occurred.
+    close_tmp_file();
     pthread_mutex_unlock(&data_recv_mutex);
     return num_received_bytes;
   }
