@@ -258,7 +258,6 @@ int main(int argc, char *argv[]) {
   signal(SIGTERM, cleanup_and_exit);
   signal(SIGINT, cleanup_and_exit);
   pthread_mutex_init(&message_write_mutex, NULL);
-  open_tmp_file();
   openlog("", 0, LOG_USER);
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
