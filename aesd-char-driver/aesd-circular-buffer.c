@@ -47,6 +47,20 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
     /**
     * TODO: implement per description
     */
+   if (NULL != buffer && NULL != add_entry)
+   {
+        if (buffer->full)
+        {
+            // Reset initial in_offset to the start of array.
+            buffer->in_offs = (buffer->out_offs) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+            buffer->out_offs += 1;
+            buffer->out_offs %= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        }
+        buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
+        buffer->entry[buffer->in_offs].size = add_entry->size;
+        buffer->in_offs += 1;
+        buffer->full = buffer->in_offs >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+   }
 }
 
 /**
