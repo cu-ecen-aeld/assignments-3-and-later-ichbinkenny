@@ -170,7 +170,7 @@ void *handle_client(void *client_ptr) {
   // printf("Received message: %s\n", string_data);
   // syslog(LOG_USER, "%s\n", string_data);
   if (-1 == write_data_to_tmp_file(string_data)) {
-    // printf("Failed to write data to file. Errno: %d\n", errno);
+    printf("Failed to write data to file. Errno: %d\n", errno);
     close(client->socket);
     free(string_data);
     // cleanup();
@@ -182,7 +182,7 @@ void *handle_client(void *client_ptr) {
   // client.
   // printf("Sending temp file to client...\n");
   if (-1 == send_log_file_to_client(client->socket)) {
-    // printf("Failed to send data to client. Errno: %d\n", errno);
+    printf("Failed to send data to client. Errno: %d\n", errno);
     close(client->socket);
     free(string_data);
     // cleanup();
