@@ -69,6 +69,24 @@ void *run_timer() {
   return NULL;
 }
 
+void open_tmp_file() {
+  if (-1 == log_file_handle) {
+    log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_RDWR, 0755);
+  }
+  if (-1 == log_file_handle) {
+    cleanup();
+    exit(-1);
+  }
+}
+
+void close_tmp_file()
+{
+  if (-1 != log_file_handle)
+  {
+    close(log_file_handle);
+  }
+}
+
 void delete_tmp_file() { unlink(AESD_TMP_FILE_PATH); }
 
 void cleanup() {
@@ -88,27 +106,9 @@ void cleanup_and_exit() {
   exit(0);
 }
 
-void open_tmp_file() {
-  if (-1 == log_file_handle) {
-    log_file_handle = open(AESD_TMP_FILE_PATH, O_CREAT | O_RDWR, 0755);
-  }
-  if (-1 == log_file_handle) {
-    cleanup();
-    exit(-1);
-  }
-}
-
-void close_tmp_file()
-{
-  if (-1 != log_file_handle)
-  {
-    close(log_file_handle);
-  }
-}
-
 int send_log_file_to_client(int client_socket) {
-  pthread_mutex_locK(&data_recv_mutex);
-  open_tmp_file();
+  pthread_mutex_lock(&data_recv_mutex);
+  log_file_handle = open(AESD_TMP_FILE_PATH, O_RDONLY);
   if (-1 != log_file_handle) {
     char message_buffer[RECV_SEND_BUFF_SIZE] = {0};
     int num_received_bytes = 0;
