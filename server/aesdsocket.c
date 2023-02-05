@@ -136,6 +136,7 @@ void *handle_client(void *client_ptr) {
   if (NULL == client_ptr) {
     return NULL;
   }
+  printf("Handling new client.\n");
   struct client_data *client = (struct client_data *)client_ptr;
   int num_read_bytes = 0;
   int current_position = 0;
@@ -191,7 +192,7 @@ void *handle_client(void *client_ptr) {
   }
   // Close connection
   // syslog(LOG_USER, "Closed connection from %s\n", client.ip_addr);
-  // printf("Closed connection from client: %s\n", client.ip_addr);
+  printf("Closed connection from client: %s\n", client.ip_addr);
   free(string_data);
   close(client->socket);
   client->has_exited = true;
