@@ -159,6 +159,7 @@ void *handle_client(void *client_ptr) {
 
     // Validate that we got new memory
     if (NULL == string_data) {
+      printf("Failed to get new memory for string data\n");
       close(client->socket);
       free(string_data);
       // cleanup();
