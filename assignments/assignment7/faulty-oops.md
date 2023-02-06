@@ -1,4 +1,12 @@
-Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000
+# Kernel Oops Analysis
+The Oops message starts with a direct description of the error.
+
+```Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000```
+
+This is clearly a null pointer being dereferenced that caused the issue.
+We then get a list of register values to aid in debugging.
+
+```
 Mem abort info:
   ESR = 0x96000045
   EC = 0x25: DABT (current EL), IL = 32 bits
@@ -8,10 +16,19 @@ Mem abort info:
 Data abort info:
   ISV = 0, ISS = 0x00000045
   CM = 0, WnR = 1
+```
+The same is then done for any pages that were in use.
+```
 user pgtable: 4k pages, 39-bit VAs, pgdp=0000000042638000
 [0000000000000000] pgd=0000000000000000, p4d=0000000000000000, pud=0000000000000000
+```
+We then get an error, and a list of the modules that could have caused the issue.
+```
 Internal error: Oops: 96000045 [#1] SMP
 Modules linked in: hello(O) faulty(O) scull(O)
+```
+Next is a series of system specifications, as well as values for the program counter and stack pointer.
+```
 CPU: 0 PID: 166 Comm: sh Tainted: G           O      5.15.18 #1
 Hardware name: linux,dummy-virt (DT)
 pstate: 80000005 (Nzcv daif -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
@@ -28,6 +45,9 @@ x11: 0000000000000000 x10: 0000000000000000 x9 : 0000000000000000
 x8 : 0000000000000000 x7 : 0000000000000000 x6 : 0000000000000000
 x5 : 0000000000000001 x4 : ffffffc0006f7000 x3 : ffffffc008d0bdf0
 x2 : 0000000000000017 x1 : 0000000000000000 x0 : 0000000000000000
+```
+Finally we get a call trace which gives a hierarchy of function calls that led to the Kernel oops.
+``` 
 Call trace:
  faulty_write+0x14/0x20 [faulty]
  ksys_write+0x68/0x100
@@ -40,4 +60,4 @@ Call trace:
  el0t_64_sync+0x1a0/0x1a4
 Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
 ---[ end trace e147002219577129 ]---
-
+```
