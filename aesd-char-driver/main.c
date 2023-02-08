@@ -28,8 +28,9 @@ struct aesd_dev aesd_device;
 
 int aesd_open(struct inode *inode, struct file *filp)
 {
+    struct aesd_dev* p_aesd_dev;
     PDEBUG("open");
-    struct aesd_dev* p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
     // See if we need to create a circular buffer (i.e. this is the first open call)
     if (NULL == p_aesd_dev->circular_buff)
     {
@@ -43,11 +44,12 @@ int aesd_open(struct inode *inode, struct file *filp)
 
 int aesd_release(struct inode *inode, struct file *filp)
 {
+    struct aesd_dev* p_aesd_dev;
     PDEBUG("release");
     /**
      * TODO: handle release
      */
-    struct aesd_dev* p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
     // free allocated buffer memory for circular buffer
 //     if (NULL != p_aesd_dev->circular_buff)
 //     {
@@ -80,23 +82,27 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {
     ssize_t retval = -ENOMEM;
+    char* message;
+    struct aesd_dev* p_aesd_dev;
+    struct aesd_buffer_entry* write_entry;
+
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
     /**
      * TODO: handle write
      */
     if (NULL != filp && NULL != filp->private_data && NULL != buf)
     {
-	const char* message = kmalloc(count, GFP_KERNEL);
+	message = kmalloc(count, GFP_KERNEL);
 	if (0 != copy_from_user(message, buf, count))
 	{
-		free(message);
+		kfree(message);
 		retval = -EFAULT;
 	}
 	else
 	{
 
-    		struct aesd_dev* p_aesd_dev = (struct aesd_dev*)filp->private_data;
-		struct aesd_buffer_entry* write_entry = (struct aesd_buffer_entry*)kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
+    		p_aesd_dev = (struct aesd_dev*)filp->private_data;
+		write_entry = (struct aesd_buffer_entry*)kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
 		write_entry->size = count;
 		write_entry->buffptr = message;
 		// TODO: implement with an offset if a newline wasnt found. 
