@@ -29,11 +29,15 @@ struct aesd_dev aesd_device;
 int aesd_open(struct inode *inode, struct file *filp)
 {
     PDEBUG("open");
-    /**
-     * TODO: handle open
-     */
+    struct aesd_dev* p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    // See if we need to create a circular buffer (i.e. this is the first open call)
+    if (NULL == p_aesd_dev->circular_buff)
+    {
+	p_aesd_dev->circular_buff = kzalloc(sizeof(struct aesd_circular_buffer), GFP_KERNEL);
+    }
     // Set filp->private_data with contents of AESD_DEV struct.
     //
+    filp->private_data = p_aesd_dev;
     return 0;
 }
 
@@ -43,6 +47,13 @@ int aesd_release(struct inode *inode, struct file *filp)
     /**
      * TODO: handle release
      */
+    struct aesd_dev* p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    // free allocated buffer memory for circular buffer
+    if (NULL != p_aesd_dev->circular_buff)
+    {
+	kfree(p_aesd_dev->circular_buff);
+    }
+    filp->private_data = NULL;
     return 0;
 }
 
@@ -54,6 +65,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     /**
      * TODO: handle read
      */
+    copy_from_user();
     return retval;
 }
 
@@ -95,6 +107,7 @@ int aesd_init_module(void)
 {
     dev_t dev = 0;
     int result;
+    // Setup dev major and minor using allocation.
     result = alloc_chrdev_region(&dev, aesd_minor, 1,
             "aesdchar");
     aesd_major = MAJOR(dev);
