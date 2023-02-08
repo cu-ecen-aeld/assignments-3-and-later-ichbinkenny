@@ -108,6 +108,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		// TODO: implement with an offset if a newline wasnt found. 
 		aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, write_entry);
 		PDEBUG("Added entry %s to the buffer at position %d\n", message, p_aesd_dev->circular_buff->in_offs - 1);
+		retval = count;
 	}
     }
 
