@@ -72,14 +72,14 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
     ssize_t retval = 0;
-    struct aesd_dev* p_aesd_dev;
+    struct aesd_dev* p_aesd_dev = &aesd_device;
     uint8_t read_offset = 0;
     ssize_t read_size = 0;
     struct aesd_buffer_entry read_entry;
     if (NULL != filp && NULL != buf && NULL != f_pos && NULL != filp->private_data)
     {
     	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
-	p_aesd_dev = (struct aesd_dev*)filp->private_data;
+	//p_aesd_dev = (struct aesd_dev*)filp->private_data;
 	read_entry = p_aesd_dev->circular_buff->entry[read_offset];
 	if (NULL != read_entry.buffptr && 0 != read_entry.size)
 	{
@@ -88,7 +88,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 		{
 			if (0 != copy_to_user(buf, read_entry.buffptr, count))
 			{
-				retval = -EAGAIN;
+				retval = -EFAULT;
 			}
 			else
 			{
@@ -99,11 +99,15 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 				retval = count;
 			}
 		}
+		else if (read_size == 0)
+		{
+			return 0;
+		}
 		else
 		{
 			if (0 != copy_to_user(buf, read_entry.buffptr, read_size))
 			{
-				retval = -EAGAIN;
+				retval = -EFAULT;
 			}
 			else
 			{
@@ -127,7 +131,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     ssize_t retval = -ENOMEM;
     char* message;
-    struct aesd_dev* p_aesd_dev;
+    struct aesd_dev* p_aesd_dev = &aesd_device;
     struct aesd_buffer_entry* write_entry;
 
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
