@@ -49,11 +49,19 @@ int aesd_release(struct inode *inode, struct file *filp)
      */
     struct aesd_dev* p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
     // free allocated buffer memory for circular buffer
-    if (NULL != p_aesd_dev->circular_buff)
-    {
-	kfree(p_aesd_dev->circular_buff);
-    }
-    filp->private_data = NULL;
+//     if (NULL != p_aesd_dev->circular_buff)
+//     {
+// 	// Free allocated entries in circular buffer
+// 	for (size_t i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; ++i)
+// 	{
+// 		if (NULL != p_aesd_dev->circular_buff->entry[i].buffptr)
+// 		{
+// 			kfree(p_aesd_dev->circular_buff->entry[i].buffptr);
+// 		}
+// 	}
+// 	kfree(p_aesd_dev->circular_buff);
+//     }
+//     filp->private_data = NULL;
     return 0;
 }
 
@@ -65,7 +73,6 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     /**
      * TODO: handle read
      */
-    copy_from_user();
     return retval;
 }
 
@@ -77,6 +84,27 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     /**
      * TODO: handle write
      */
+    if (NULL != filp && NULL != filp->private_data && NULL != buf)
+    {
+	const char* message = kmalloc(count, GFP_KERNEL);
+	if (0 != copy_from_user(message, buf, count))
+	{
+		free(message);
+		retval = -EFAULT;
+	}
+	else
+	{
+
+    		struct aesd_dev* p_aesd_dev = (struct aesd_dev*)filp->private_data;
+		struct aesd_buffer_entry* write_entry = (struct aesd_buffer_entry*)kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
+		write_entry->size = count;
+		write_entry->buffptr = message;
+		// TODO: implement with an offset if a newline wasnt found. 
+		aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, write_entry);
+		PDEBUG("Added entry %s to the buffer at position %d\n", message, p_aesd_dev->circular_buff->in_offs - 1);
+	}
+    }
+
     return retval;
 }
 struct file_operations aesd_fops = {
