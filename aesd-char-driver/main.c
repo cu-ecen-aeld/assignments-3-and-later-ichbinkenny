@@ -83,7 +83,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	read_entry = p_aesd_dev->circular_buff->entry[read_offset];
 	if (NULL != read_entry.buffptr && 0 != read_entry.size)
 	{
-		read_size = p_aesd_dev->circular_buff->entry[read_offset].size;
+		read_size = read_entry.size;
 		if (read_size > count)
 		{
 			if (0 != copy_to_user(buf, read_entry.buffptr, count))
@@ -92,6 +92,10 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 			}
 			else
 			{
+				PDEBUG("Reading value, and returning count (%zu)\n", count);
+				// Increment buffer pointer to next item
+				p_aesd_dev->circular_buff->out_offs += 1;
+				p_aesd_dev->circular_buff->out_offs %= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
 				retval = count;
 			}
 		}
@@ -103,7 +107,11 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 			}
 			else
 			{
-				retval = read_size;
+				// Increment buffer pointer to next item
+				PDEBUG("Reading value, and returning read_size (%zu)\n", read_size);
+				p_aesd_dev->circular_buff->out_offs += 1;
+				p_aesd_dev->circular_buff->out_offs %= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+				retval = count;
 			}
 		}
 	}
@@ -139,7 +147,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     		p_aesd_dev = (struct aesd_dev*)filp->private_data;
 		write_entry = (struct aesd_buffer_entry*)kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
-		write_entry->size = count;
+		write_entry->size = strlen(message);
 		write_entry->buffptr = message;
 		// TODO: implement with an offset if a newline wasnt found. 
 		aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, write_entry);
@@ -210,7 +218,6 @@ void aesd_cleanup_module(void)
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
-    free_buffer_contents();
     unregister_chrdev_region(devno, 1);
 }
 
