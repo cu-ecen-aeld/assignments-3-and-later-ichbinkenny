@@ -39,6 +39,7 @@ int aesd_open(struct inode *inode, struct file *filp)
     // Set filp->private_data with contents of AESD_DEV struct.
     //
     filp->private_data = p_aesd_dev;
+    aesd_device = *p_aesd_dev;
     return 0;
 }
 
@@ -71,10 +72,45 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
     ssize_t retval = 0;
-    PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+    struct aesd_dev* p_aesd_dev;
+    uint8_t read_offset = 0;
+    ssize_t read_size = 0;
+    struct aesd_buffer_entry read_entry;
+    if (NULL != filp && NULL != buf && NULL != f_pos && NULL != filp->private_data)
+    {
+    	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+	p_aesd_dev = (struct aesd_dev*)filp->private_data;
+	read_entry = p_aesd_dev->circular_buff->entry[read_offset];
+	if (NULL != read_entry.buffptr && 0 != read_entry.size)
+	{
+		read_size = p_aesd_dev->circular_buff->entry[read_offset].size;
+		if (read_size > count)
+		{
+			if (0 != copy_to_user(buf, read_entry.buffptr, count))
+			{
+				retval = -EAGAIN;
+			}
+			else
+			{
+				retval = count;
+			}
+		}
+		else
+		{
+			if (0 != copy_to_user(buf, read_entry.buffptr, read_size))
+			{
+				retval = -EAGAIN;
+			}
+			else
+			{
+				retval = read_size;
+			}
+		}
+	}
     /**
      * TODO: handle read
      */
+    }
     return retval;
 }
 
@@ -174,7 +210,7 @@ void aesd_cleanup_module(void)
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
-
+    free_buffer_contents();
     unregister_chrdev_region(devno, 1);
 }
 
