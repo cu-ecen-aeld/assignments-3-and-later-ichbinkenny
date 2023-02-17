@@ -50,7 +50,8 @@ int aesd_release(struct inode *inode, struct file *filp)
     /**
      * TODO: handle release
      */
-    p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+    filp->private_data = NULL;
+//     p_aesd_dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
     // free allocated buffer memory for circular buffer
 //     if (NULL != p_aesd_dev->circular_buff)
 //     {
@@ -71,57 +72,33 @@ int aesd_release(struct inode *inode, struct file *filp)
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
-    ssize_t retval = 0;
-    struct aesd_dev* p_aesd_dev = &aesd_device;
-    uint8_t read_offset = 0;
-    ssize_t read_size = 0;
-    struct aesd_buffer_entry read_entry;
-    if (NULL != filp && NULL != buf && NULL != f_pos && NULL != filp->private_data)
+    ssize_t retval = 0, status = 0;
+    uint8_t entry_index;
+    ssize_t read_offset;
+    ssize_t read_size;
+    struct aesd_dev* p_aesd_dev;
+    struct aesd_buffer_entry* entry;
+    
+    p_aesd_dev = filp->private_data;
+
+    // Find entry index 
+    entry_index = p_aesd_dev->circular_buff->out_offs;
+    // Get the entry
+    if (NULL != (entry = aesd_circular_buffer_find_entry_offset_for_fpos(p_aesd_dev->circular_buff, *f_pos, &read_offset)))
     {
-    	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
-	//p_aesd_dev = (struct aesd_dev*)filp->private_data;
-	read_entry = p_aesd_dev->circular_buff->entry[read_offset];
-	if (NULL != read_entry.buffptr && 0 != read_entry.size)
-	{
-		read_size = read_entry.size;
-		if (read_size > count)
-		{
-			if (0 != copy_to_user(buf, read_entry.buffptr, count))
-			{
-				retval = -EFAULT;
-			}
-			else
-			{
-				PDEBUG("Reading value, and returning count (%zu)\n", count);
-				// Increment buffer pointer to next item
-				p_aesd_dev->circular_buff->out_offs += 1;
-				p_aesd_dev->circular_buff->out_offs %= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-				retval = count;
-			}
-		}
-		else if (read_size == 0)
-		{
-			return 0;
-		}
-		else
-		{
-			if (0 != copy_to_user(buf, read_entry.buffptr, read_size))
-			{
-				retval = -EFAULT;
-			}
-			else
-			{
-				// Increment buffer pointer to next item
-				PDEBUG("Reading value, and returning read_size (%zu)\n", read_size);
-				p_aesd_dev->circular_buff->out_offs += 1;
-				p_aesd_dev->circular_buff->out_offs %= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-				retval = count;
-			}
-		}
-	}
-    /**
-     * TODO: handle read
-     */
+        // determine read size
+        read_size = (count < (entry->size - read_offset)) ? count : (entry->size - read_offset);
+        // copy entry data to user
+        status = copy_to_user(buf, (entry->buffptr + read_offset), read_size);
+        if (0 != status)
+        {
+            return -EFAULT;
+        }
+        else
+        {
+            *f_pos += read_size;
+            return read_size;
+        }
     }
     return retval;
 }
@@ -129,35 +106,69 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {
-    ssize_t retval = -ENOMEM;
+    ssize_t retval = -ENOMEM, status;
+    bool append_data = false;
     char* message;
-    struct aesd_dev* p_aesd_dev = &aesd_device;
-    struct aesd_buffer_entry* write_entry;
+    struct aesd_dev* p_aesd_dev = filp->private_data;
+    uint8_t current_index = p_aesd_dev->circular_buff->in_offs;
+    uint8_t previous_index = (current_index != 0) ? (current_index - 1) : AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED - 1; 
+    struct aesd_buffer_entry* previous_entry = &p_aesd_dev->circular_buff->entry[previous_index];
+    struct aesd_buffer_entry* current_entry = &p_aesd_dev->circular_buff->entry[current_index];
 
-    PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-    /**
-     * TODO: handle write
-     */
-    if (NULL != filp && NULL != filp->private_data && NULL != buf)
+    // Check previous entry and see if the incoming data is to be appended.
+    if (p_aesd_dev->circular_buff->full)
     {
-	message = kmalloc(count, GFP_KERNEL);
-	if (0 != copy_from_user(message, buf, count))
-	{
-		kfree(message);
-		retval = -EFAULT;
-	}
-	else
-	{
+        // Check if an append is needed
+        if (previous_entry->buffptr != NULL && previous_entry->buffptr[previous_entry->size - 1] != '\n')
+        {
+            PDEBUG("Appending to a previous entry.\n");
+            // Need to append to previous entry.
+            krealloc(previous_entry->buffptr, (previous_entry->size + count), GFP_KERNEL);
+            status = copy_from_user((previous_entry->buffptr + previous_entry->size), buf, count);
+            if (0 != status)
+            {
+                return -EFAULT;
+            }
+            previous_entry->size += count;
+            retval = count;
+            // Do not move write pointer as we modified the previous entry, not the current one.
+        }
+        else
+        {
+            PDEBUG("Replacing previous entry.\n");
+            // Overwrite item in current_entry with new message.
+            krealloc(current_entry->buffptr, count, GFP_KERNEL);
+            status = copy_from_user(current_entry->buffptr, buf, count);
+            if (0 != status)
+            {
+                return -EFAULT;
+            }
+            current_entry->size = count;
+            retval = count;
+            // Move to next write index.
+            p_aesd_dev->circular_buff->in_offs = (p_aesd_dev->circular_buff->in_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        }
+    }
+    else
+    {
+        // New entry
+        // Setup new data.
+        message = kmalloc(count, GFP_KERNEL);
+        memset(message, 0, count);
+        status = copy_from_user(message, buf, count);
+        if (0 != status)
+        {
+            // Release message resource,
+            kfree(message);
+            return -ERESTARTSYS;
+        }
+        // Store message
+        struct aesd_buffer_entry* entry = kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
 
-    		p_aesd_dev = (struct aesd_dev*)filp->private_data;
-		write_entry = (struct aesd_buffer_entry*)kmalloc(sizeof(struct aesd_buffer_entry), GFP_KERNEL);
-		write_entry->size = strlen(message);
-		write_entry->buffptr = message;
-		// TODO: implement with an offset if a newline wasnt found. 
-		aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, write_entry);
-		PDEBUG("Added entry %s to the buffer at position %d\n", message, p_aesd_dev->circular_buff->in_offs - 1);
-		retval = count;
-	}
+        entry->buffptr = message;
+        entry->size = count;
+        aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, entry);
+        retval = count;
     }
 
     return retval;
@@ -222,6 +233,13 @@ void aesd_cleanup_module(void)
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
+    for (uint8_t i = 0; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; ++i)
+    {
+	if (NULL != aesd_device.circular_buff->entry[i].buffptr)
+	{
+		kfree(aesd_device.circular_buff->entry[i].buffptr);
+	}
+    }
     unregister_chrdev_region(devno, 1);
 }
 
