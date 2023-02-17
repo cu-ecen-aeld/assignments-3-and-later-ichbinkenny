@@ -78,8 +78,12 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     ssize_t read_size;
     struct aesd_dev* p_aesd_dev;
     struct aesd_buffer_entry* entry;
-    
+
     p_aesd_dev = filp->private_data;
+    if (0 != mutex_lock_interruptible(&p_aesd_dev->dev_lock))
+    {
+	return -ERESTARTSYS;
+    }
 
     // Find entry index 
     entry_index = p_aesd_dev->circular_buff->out_offs;
@@ -92,14 +96,17 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         status = copy_to_user(buf, (entry->buffptr + read_offset), read_size);
         if (0 != status)
         {
+	    mutex_unlock(&p_aesd_dev->dev_lock);
             return -EFAULT;
         }
         else
         {
             *f_pos += read_size;
+	    mutex_unlock(&p_aesd_dev->dev_lock);
             return read_size;
         }
     }
+    mutex_unlock(&p_aesd_dev->dev_lock);
     return retval;
 }
 
@@ -107,7 +114,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {
     ssize_t retval = -ENOMEM, status;
-    bool append_data = false;
+    bool appended = false;
     char* message;
     struct aesd_dev* p_aesd_dev = filp->private_data;
     uint8_t current_index = p_aesd_dev->circular_buff->in_offs;
@@ -115,6 +122,10 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     struct aesd_buffer_entry* previous_entry = &p_aesd_dev->circular_buff->entry[previous_index];
     struct aesd_buffer_entry* current_entry = &p_aesd_dev->circular_buff->entry[current_index];
 
+    if (0 != mutex_lock_interruptible(&p_aesd_dev->dev_lock))
+    {
+	return -ERESTARTSYS;
+    }
     // Check previous entry and see if the incoming data is to be appended.
     if (p_aesd_dev->circular_buff->full)
     {
@@ -123,33 +134,26 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         {
             PDEBUG("Appending to a previous entry.\n");
             // Need to append to previous entry.
-            krealloc(previous_entry->buffptr, (previous_entry->size + count), GFP_KERNEL);
+            previous_entry->buffptr = krealloc(previous_entry->buffptr, (previous_entry->size + count), GFP_KERNEL);
             status = copy_from_user((previous_entry->buffptr + previous_entry->size), buf, count);
             if (0 != status)
             {
+		mutex_unlock(&p_aesd_dev->dev_lock);
                 return -EFAULT;
             }
             previous_entry->size += count;
             retval = count;
+	    appended = true;
             // Do not move write pointer as we modified the previous entry, not the current one.
         }
         else
         {
             PDEBUG("Replacing previous entry.\n");
             // Overwrite item in current_entry with new message.
-            krealloc(current_entry->buffptr, count, GFP_KERNEL);
-            status = copy_from_user(current_entry->buffptr, buf, count);
-            if (0 != status)
-            {
-                return -EFAULT;
-            }
-            current_entry->size = count;
-            retval = count;
-            // Move to next write index.
-            p_aesd_dev->circular_buff->in_offs = (p_aesd_dev->circular_buff->in_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+            // kfree(current_entry->buffptr);
         }
     }
-    else
+    if (!appended)
     {
         // New entry
         // Setup new data.
@@ -160,6 +164,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         {
             // Release message resource,
             kfree(message);
+	    mutex_unlock(&p_aesd_dev->dev_lock);
             return -ERESTARTSYS;
         }
         // Store message
@@ -170,7 +175,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, entry);
         retval = count;
     }
-
+    mutex_unlock(&p_aesd_dev->dev_lock);
     return retval;
 }
 struct file_operations aesd_fops = {
@@ -214,7 +219,7 @@ int aesd_init_module(void)
     /**
      * TODO: initialize the AESD specific portion of the device
      */
-
+    mutex_init(&aesd_device.dev_lock);
     result = aesd_setup_cdev(&aesd_device);
 
     if( result ) {
@@ -240,6 +245,7 @@ void aesd_cleanup_module(void)
 		kfree(aesd_device.circular_buff->entry[i].buffptr);
 	}
     }
+    mutex_destroy(&aesd_device.dev_lock);
     unregister_chrdev_region(devno, 1);
 }
 
