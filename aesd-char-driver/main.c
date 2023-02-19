@@ -80,7 +80,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_buffer_entry* entry;
 
     p_aesd_dev = filp->private_data;
-    if (0 != mutex_lock_interruptible(&p_aesd_dev->dev_lock))
+    if (0 != mutex_lock_interruptible(&aesd_device.dev_lock))
     {
 	return -ERESTARTSYS;
     }
@@ -96,17 +96,17 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
         status = copy_to_user(buf, (entry->buffptr + read_offset), read_size);
         if (0 != status)
         {
-	    mutex_unlock(&p_aesd_dev->dev_lock);
+	    mutex_unlock(&aesd_device.dev_lock);
             return -EFAULT;
         }
         else
         {
             *f_pos += read_size;
-	    mutex_unlock(&p_aesd_dev->dev_lock);
+	    mutex_unlock(&aesd_device.dev_lock);
             return read_size;
         }
     }
-    mutex_unlock(&p_aesd_dev->dev_lock);
+    mutex_unlock(&aesd_device.dev_lock);
     return retval;
 }
 
@@ -117,28 +117,29 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     bool appended = false;
     char* message;
     struct aesd_dev* p_aesd_dev = filp->private_data;
-    uint8_t current_index = p_aesd_dev->circular_buff->in_offs;
-    uint8_t previous_index = (current_index != 0) ? (current_index - 1) : AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED - 1; 
+    uint8_t current_index = p_aesd_dev->circular_buff->in_offs % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    uint8_t previous_index = (current_index != 0) ? (current_index - 1) : (AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED - 1); 
     struct aesd_buffer_entry* previous_entry = &p_aesd_dev->circular_buff->entry[previous_index];
     struct aesd_buffer_entry* current_entry = &p_aesd_dev->circular_buff->entry[current_index];
 
-    if (0 != mutex_lock_interruptible(&p_aesd_dev->dev_lock))
+    if (0 != mutex_lock_interruptible(&aesd_device.dev_lock))
     {
 	return -ERESTARTSYS;
     }
     // Check previous entry and see if the incoming data is to be appended.
     if (p_aesd_dev->circular_buff->full)
     {
+	PDEBUG("Previous index was: %d\n", previous_index);
         // Check if an append is needed
         if (previous_entry->buffptr != NULL && previous_entry->buffptr[previous_entry->size - 1] != '\n')
         {
             PDEBUG("Appending to a previous entry.\n");
             // Need to append to previous entry.
             previous_entry->buffptr = krealloc(previous_entry->buffptr, (previous_entry->size + count), GFP_KERNEL);
-            status = copy_from_user((previous_entry->buffptr + previous_entry->size), buf, count);
+            status = copy_from_user((void*)(previous_entry->buffptr + previous_entry->size), buf, count);
             if (0 != status)
             {
-		mutex_unlock(&p_aesd_dev->dev_lock);
+		mutex_unlock(&aesd_device.dev_lock);
                 return -EFAULT;
             }
             previous_entry->size += count;
@@ -148,6 +149,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         }
         else
         {
+	    PDEBUG("Previous entry terminating character was %c\n", previous_entry->buffptr[previous_entry->size - 1]);
             PDEBUG("Replacing previous entry.\n");
             // Overwrite item in current_entry with new message.
             // kfree(current_entry->buffptr);
@@ -157,6 +159,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     {
         // New entry
         // Setup new data.
+	PDEBUG("Writing to index %d\n", current_index);
         message = kmalloc(count, GFP_KERNEL);
         memset(message, 0, count);
         status = copy_from_user(message, buf, count);
@@ -164,7 +167,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         {
             // Release message resource,
             kfree(message);
-	    mutex_unlock(&p_aesd_dev->dev_lock);
+	    mutex_unlock(&aesd_device.dev_lock);
             return -ERESTARTSYS;
         }
         // Store message
@@ -172,10 +175,10 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
         entry->buffptr = message;
         entry->size = count;
-        aesd_circular_buffer_add_entry(p_aesd_dev->circular_buff, entry);
+        aesd_circular_buffer_add_entry(aesd_device.circular_buff, entry);
         retval = count;
     }
-    mutex_unlock(&p_aesd_dev->dev_lock);
+    mutex_unlock(&aesd_device.dev_lock);
     return retval;
 }
 struct file_operations aesd_fops = {
