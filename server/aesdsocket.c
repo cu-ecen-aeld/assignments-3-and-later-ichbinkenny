@@ -16,11 +16,20 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef USE_AESD_CHAR_DEVICE
+#define USE_AESD_CHAR_DEVICE 1
+#endif
+
+#if USE_AESD_CHAR_DEVICE
+#define AESD_TMP_FILE_PATH "/dev/aesdchar"
+#else
 #define AESD_TMP_FILE_PATH "/var/tmp/aesdsocketdata"
+#endif
 #define RECV_SEND_BUFF_SIZE 1024
 #define MAX_START_BUFFER_SIZE 512
 #define TIMESTAMP_DELAY 10
 #define TIMESTAMP_FORMAT "%F %T\n"
+
 
 int server_socket = -1;
 struct addrinfo *address_info;
@@ -76,7 +85,7 @@ void open_tmp_file() {
 
 void close_tmp_file()
 {
-  if (-1 != log_file_handle)
+  if (-1 != log_file_handle && USE_AESD_CHAR_DEVICE == 0)
   {
     close(log_file_handle);
   }
@@ -207,8 +216,10 @@ void run_server(int server_socket) {
     exit(-1);
   }
   freeaddrinfo(address_info);
-  // Run timestamp thread
+  // Run timestamp thread if writing to tmp dir
+#if USE_AESD_CHAR_DEVICE == 0
   pthread_create(&timestamp_thread, NULL, run_timer, NULL);
+#endif 
   while (!should_terminate) {
     // printf("Waiting for client...\n");
     struct sockaddr_in client_addr_info = {0};
